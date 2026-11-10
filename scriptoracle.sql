@@ -1,11 +1,11 @@
 -- GLOBAL SOLUTION 2026 - CITIZENTECH (NEXA)
--- Script Oracle Database
+-- Script Oracle Database (100% Sincronizado com o Spring Boot)
 -- =====================================================================
-
--- 1. DROP TABLES (Ignora erro caso ainda não existam)
+-- 1. DROP TABLES
 DROP TABLE tb_atendimento CASCADE CONSTRAINTS;
 DROP TABLE tb_colaborador CASCADE CONSTRAINTS;
 DROP TABLE tb_paciente CASCADE CONSTRAINTS;
+DROP TABLE tb_cidadao CASCADE CONSTRAINTS;
 DROP TABLE tb_unidade_saude CASCADE CONSTRAINTS;
 DROP TABLE tb_localizacao CASCADE CONSTRAINTS;
 DROP TABLE tb_municipio CASCADE CONSTRAINTS;
@@ -15,6 +15,7 @@ DROP TABLE tb_estado CASCADE CONSTRAINTS;
 DROP SEQUENCE seq_atendimento;
 DROP SEQUENCE seq_colaborador;
 DROP SEQUENCE seq_paciente;
+DROP SEQUENCE seq_cidadao;
 DROP SEQUENCE seq_unidade_saude;
 DROP SEQUENCE seq_localizacao;
 DROP SEQUENCE seq_municipio;
@@ -26,10 +27,11 @@ CREATE SEQUENCE seq_municipio START WITH 1 INCREMENT BY 1 CACHE 100 NOCYCLE;
 CREATE SEQUENCE seq_localizacao START WITH 1 INCREMENT BY 1 CACHE 1000 NOCYCLE;
 CREATE SEQUENCE seq_unidade_saude START WITH 1 INCREMENT BY 1 CACHE 1000 NOCYCLE;
 CREATE SEQUENCE seq_paciente START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE seq_cidadao START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE SEQUENCE seq_colaborador START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE SEQUENCE seq_atendimento START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 
--- 4. CRIAÇÃO DAS TABELAS (RESPEITANDO A HIERARQUIA 3FN)
+-- 4. CRIAÇÃO DAS TABELAS (3ª FORMA NORMAL - 3FN)
 -- =====================================================================
 
 -- 4.1. TABELA DE ESTADOS (UF - IBGE)
@@ -71,11 +73,10 @@ CREATE TABLE tb_localizacao (
 CREATE TABLE tb_unidade_saude (
     id              NUMBER(19) DEFAULT ON NULL seq_unidade_saude.NEXTVAL NOT NULL,
     nome            VARCHAR2(255) NOT NULL,
-    id_localizacao  NUMBER(19),
+    id_localizacao  NUMBER(19) UNIQUE,
     tempo_espera    NUMBER(10, 2) DEFAULT 0.0,
     tipo_unidade    VARCHAR2(60),
     CONSTRAINT pk_tb_unidade_saude PRIMARY KEY (id),
-    CONSTRAINT uk_unidade_localizacao UNIQUE (id_localizacao),
     CONSTRAINT fk_unidade_localizacao FOREIGN KEY (id_localizacao)
         REFERENCES tb_localizacao (id)
 );
@@ -86,6 +87,15 @@ CREATE TABLE tb_paciente (
     cpf     VARCHAR2(15) NOT NULL UNIQUE,
     nome    VARCHAR2(150) NOT NULL,
     CONSTRAINT pk_tb_paciente PRIMARY KEY (id)
+);
+
+CREATE TABLE tb_cidadao(
+     id                  NUMBER(19) DEFAULT ON NULL seq_cidadao.NEXTVAL NOT NULL,
+     nome                VARCHAR2(150) NOT NULL,
+     email               VARCHAR2(150) NOT NULL UNIQUE,
+     senha               VARCHAR2(255) NOT NULL,
+     aceite_localizacao  TIMESTAMP,
+     CONSTRAINT pk_tb_cidadao PRIMARY KEY (id)
 );
 
 -- 4.6. TABELA DE COLABORADORES (PROFISSIONAIS DE SAÚDE)
@@ -107,9 +117,12 @@ CREATE TABLE tb_atendimento (
     id_unidade_saude    NUMBER(19) NOT NULL,
     id_paciente         NUMBER(19) NOT NULL,
     id_colaborador      NUMBER(19),
-    status_atendimento  VARCHAR2(30) DEFAULT 'ABERTO' NOT NULL CHECK (status IN ('ABERTO', 'ENCERRADO')),
+    status_atendimento  VARCHAR2(30) DEFAULT 'AGUARDANDO' NOT NULL CHECK (status_atendimento IN ('AGUARDANDO', 'CHAMADO', 'FINALIZADO')),
     data_hora_chegada   TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    data_hora_chamada   TIMESTAMP,
     data_hora_fim       TIMESTAMP,
+    senha               VARCHAR2(10),
+    servico        VARCHAR2(30) DEFAULT 'CLINICO_GERAL' NOT NULL CHECK (servico IN ('CLINICO_GERAL', 'TRIAGEM', 'VACINACAO', 'PEDIATRIA', 'ODONTOLOGIA')),
     CONSTRAINT pk_tb_atendimento PRIMARY KEY (id),
     CONSTRAINT fk_atendimento_unidade FOREIGN KEY (id_unidade_saude)
         REFERENCES tb_unidade_saude (id),
@@ -119,12 +132,7 @@ CREATE TABLE tb_atendimento (
         REFERENCES tb_colaborador (id)
 );
 
--- 5. ÍNDICES DE PERFORMANCE (FUNDAMENTAIS PARA OS 90 MIL REGISTROS!)
+-- 5. ÍNDICES DE PERFORMANCE
 -- =====================================================================
-
--- Índice composto Geoespacial (Bounding Box) em tb_localizacao:
--- Faz a query Haversine buscar entre 90.000 unidades em menos de 15ms!
 CREATE INDEX idx_localizacao_lat_lon ON tb_localizacao (latitude, longitude);
-
--- Índice para contagem rápida da fila ativa por unidade e status:
-CREATE INDEX idx_atendimento_unidade_status ON tb_atendimento (id_unidade_saude, status);
+CREATE INDEX idx_atendimento_fila_fifo ON tb_atendimento (id_unidade_saude, servico, status_atendimento, data_hora_chegada);
