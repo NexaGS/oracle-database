@@ -132,6 +132,12 @@ CREATE TABLE tb_atendimento (
         REFERENCES tb_colaborador (id)
 );
 
+CREATE TABLE tb_cidadao_unidade_saude(
+    id_cidadao NUMBER (19),
+    id_unidade_saude NUMBER (19)
+    --mais ou menos isso
+)
+
 -- 5. ÍNDICES DE PERFORMANCE
 -- =====================================================================
 CREATE INDEX idx_localizacao_lat_lon ON tb_localizacao (latitude, longitude);
