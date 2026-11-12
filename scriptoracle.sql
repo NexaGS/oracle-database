@@ -1,7 +1,7 @@
 -- GLOBAL SOLUTION 2026 - CITIZENTECH (NEXA)
--- Script Oracle Database (100% Sincronizado com o Spring Boot)
 -- =====================================================================
 -- 1. DROP TABLES
+DROP TABLE tb_cidadao_unidade_saude CASCADE CONSTRAINTS;
 DROP TABLE tb_atendimento CASCADE CONSTRAINTS;
 DROP TABLE tb_colaborador CASCADE CONSTRAINTS;
 DROP TABLE tb_paciente CASCADE CONSTRAINTS;
@@ -50,8 +50,7 @@ CREATE TABLE tb_municipio (
     nome                    VARCHAR2(120) NOT NULL,
     id_estado               NUMBER(19) NOT NULL,
     CONSTRAINT pk_tb_municipio PRIMARY KEY (id),
-    CONSTRAINT fk_municipio_estado FOREIGN KEY (id_estado)
-        REFERENCES tb_estado (id)
+    CONSTRAINT fk_municipio_estado FOREIGN KEY (id_estado) REFERENCES tb_estado (id)
 );
 
 -- 4.3. TABELA DE LOCALIZAÇÕES (ENDEREÇOS E COORDENADAS WGS84)
@@ -65,8 +64,7 @@ CREATE TABLE tb_localizacao (
     latitude        NUMBER(10, 7) NOT NULL CHECK (latitude BETWEEN -90 AND 90),
     longitude       NUMBER(10, 7) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
     CONSTRAINT pk_tb_localizacao PRIMARY KEY (id),
-    CONSTRAINT fk_localizacao_municipio FOREIGN KEY (id_municipio)
-        REFERENCES tb_municipio (id)
+    CONSTRAINT fk_localizacao_municipio FOREIGN KEY (id_municipio) REFERENCES tb_municipio (id)
 );
 
 -- 4.4. TABELA DE UNIDADES DE SAÚDE (CNES / SUS)
@@ -77,11 +75,10 @@ CREATE TABLE tb_unidade_saude (
     tempo_espera    NUMBER(10, 2) DEFAULT 0.0,
     tipo_unidade    VARCHAR2(60),
     CONSTRAINT pk_tb_unidade_saude PRIMARY KEY (id),
-    CONSTRAINT fk_unidade_localizacao FOREIGN KEY (id_localizacao)
-        REFERENCES tb_localizacao (id)
+    CONSTRAINT fk_unidade_localizacao FOREIGN KEY (id_localizacao) REFERENCES tb_localizacao (id)
 );
 
--- 4.5. TABELA DE PACIENTES (CIDADÃOS)
+-- 4.5. TABELA DE PACIENTES
 CREATE TABLE tb_paciente (
     id      NUMBER(19) DEFAULT ON NULL seq_paciente.NEXTVAL NOT NULL,
     cpf     VARCHAR2(15) NOT NULL UNIQUE,
@@ -89,6 +86,7 @@ CREATE TABLE tb_paciente (
     CONSTRAINT pk_tb_paciente PRIMARY KEY (id)
 );
 
+-- 4.6. TABELA DE CIDADÃOS
 CREATE TABLE tb_cidadao(
      id                  NUMBER(19) DEFAULT ON NULL seq_cidadao.NEXTVAL NOT NULL,
      nome                VARCHAR2(150) NOT NULL,
@@ -98,7 +96,7 @@ CREATE TABLE tb_cidadao(
      CONSTRAINT pk_tb_cidadao PRIMARY KEY (id)
 );
 
--- 4.6. TABELA DE COLABORADORES (PROFISSIONAIS DE SAÚDE)
+-- 4.7. TABELA DE COLABORADORES (PROFISSIONAIS DE SAÚDE)
 CREATE TABLE tb_colaborador (
     id          NUMBER(19) DEFAULT ON NULL seq_colaborador.NEXTVAL NOT NULL,
     nome        VARCHAR2(150) NOT NULL,
@@ -107,11 +105,10 @@ CREATE TABLE tb_colaborador (
     senha       VARCHAR2(255) NOT NULL,
     id_unidade  NUMBER(19),
     CONSTRAINT pk_tb_colaborador PRIMARY KEY (id),
-    CONSTRAINT fk_colaborador_unidade FOREIGN KEY (id_unidade)
-        REFERENCES tb_unidade_saude (id)
+    CONSTRAINT fk_colaborador_unidade FOREIGN KEY (id_unidade) REFERENCES tb_unidade_saude (id)
 );
 
--- 4.7. TABELA DE ATENDIMENTOS (FILA EM TEMPO REAL)
+-- 4.8. TABELA DE ATENDIMENTOS (FILA EM TEMPO REAL)
 CREATE TABLE tb_atendimento (
     id                  NUMBER(19) DEFAULT ON NULL seq_atendimento.NEXTVAL NOT NULL,
     id_unidade_saude    NUMBER(19) NOT NULL,
@@ -124,21 +121,25 @@ CREATE TABLE tb_atendimento (
     senha               VARCHAR2(10),
     servico        VARCHAR2(30) DEFAULT 'CLINICO_GERAL' NOT NULL CHECK (servico IN ('CLINICO_GERAL', 'TRIAGEM', 'VACINACAO', 'PEDIATRIA', 'ODONTOLOGIA')),
     CONSTRAINT pk_tb_atendimento PRIMARY KEY (id),
-    CONSTRAINT fk_atendimento_unidade FOREIGN KEY (id_unidade_saude)
-        REFERENCES tb_unidade_saude (id),
-    CONSTRAINT fk_atendimento_paciente FOREIGN KEY (id_paciente)
-        REFERENCES tb_paciente (id),
-    CONSTRAINT fk_atendimento_colaborador FOREIGN KEY (id_colaborador)
-        REFERENCES tb_colaborador (id)
+    CONSTRAINT fk_atendimento_unidade FOREIGN KEY (id_unidade_saude) REFERENCES tb_unidade_saude (id),
+    CONSTRAINT fk_atendimento_paciente FOREIGN KEY (id_paciente) REFERENCES tb_paciente (id),
+    CONSTRAINT fk_atendimento_colaborador FOREIGN KEY (id_colaborador) REFERENCES tb_colaborador (id)
 );
 
+-- 4.9. TABELA DE UNIDADES DE SAÚDE FAVORITAS DE UM CIDADÃO
 CREATE TABLE tb_cidadao_unidade_saude(
-    id_cidadao NUMBER (19),
-    id_unidade_saude NUMBER (19)
-    --mais ou menos isso
-)
+    id_cidadao       NUMBER(19) NOT NULL,
+    id_unidade_saude NUMBER(19) NOT NULL,
+    CONSTRAINT pk_tb_cidadao_unidade PRIMARY KEY (id_cidadao, id_unidade_saude),
+    CONSTRAINT fk_cus_cidadao FOREIGN KEY (id_cidadao) REFERENCES tb_cidadao (id) ON DELETE CASCADE,
+    CONSTRAINT fk_cus_unidade FOREIGN KEY (id_unidade_saude) REFERENCES tb_unidade_saude (id) ON DELETE CASCADE
+);
 
 -- 5. ÍNDICES DE PERFORMANCE
 -- =====================================================================
-CREATE INDEX idx_localizacao_lat_lon ON tb_localizacao (latitude, longitude);
-CREATE INDEX idx_atendimento_fila_fifo ON tb_atendimento (id_unidade_saude, servico, status_atendimento, data_hora_chegada);
+CREATE INDEX idx_localizacao_latitude_longitude ON tb_localizacao (latitude, longitude);
+CREATE INDEX idx_atendimento_fila ON tb_atendimento (id_unidade_saude, servico, status_atendimento, data_hora_chegada);
+CREATE INDEX idx_municipio_estado ON tb_municipio (id_estado);
+CREATE INDEX idx_colaborador_unidade ON tb_colaborador (id_unidade);
+CREATE INDEX idx_atendimento_paciente ON tb_atendimento (id_paciente);
+CREATE INDEX idx_atendimento_colaborador ON tb_atendimento (id_colaborador);
