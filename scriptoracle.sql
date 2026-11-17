@@ -374,7 +374,7 @@ exception
 end;
 /
 
--- 8. Cursor explícito filtrando apenas uma unidade (ex: ID 1)
+-- 8. Cursor explícito filtrando apenas uma unidade (ex: ID 8922 - PA MUN SAO MATEUS II)
    DECLARE
       CURSOR c_fila_espera IS
          SELECT a.senha, p.nome AS paciente, a.servico,
