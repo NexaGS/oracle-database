@@ -84,7 +84,7 @@ create table tb_unidade_saude (
 -- 4.5. TABELA DE PACIENTES
 create table tb_paciente (
    id   number(19) default on null seq_paciente.nextval not null,
-   cpf  varchar2(15) not null unique,
+   cpf  varchar2(11) not null unique,
    nome varchar2(150) not null,
    constraint pk_tb_paciente primary key ( id )
 );
@@ -198,19 +198,19 @@ insert into tb_unidade_saude ( nome, id_localizacao, tipo_unidade ) values ( 'En
 insert into tb_unidade_saude ( nome, id_localizacao, tipo_unidade ) values ( 'AuxiliaSaude', 10, 'CONSULTORIO_ISOLADO' );
 
 -- 6.5. Inserts de pacientes
-insert into tb_paciente ( cpf, nome ) values ( '000.000.000.07', 'Thaciano do Santos' );
-insert into tb_paciente ( cpf, nome ) values ( '000.000.000.06', 'Ronielson' );
-insert into tb_paciente ( cpf, nome ) values ( '000.000.000.03', 'Gonzalo Escobar' );
-insert into tb_paciente ( cpf, nome ) values ( '111.222.333.04', 'Mariana Oliveira' );
-insert into tb_paciente ( cpf, nome ) values ( '222.333.444.05', 'Carlos Eduardo Lima' );
-insert into tb_paciente ( cpf, nome ) values ( '333.444.555.06', 'Fernanda Rocha' );
-insert into tb_paciente ( cpf, nome ) values ( '444.555.666.07', 'Joao Pedro Martins' );
-insert into tb_paciente ( cpf, nome ) values ( '555.666.777.08', 'Patricia Gomes' );
-insert into tb_paciente ( cpf, nome ) values ( '666.777.888.09', 'Rafael Almeida' );
-insert into tb_paciente ( cpf, nome ) values ( '777.888.999.10', 'Camila Souza' );
-insert into tb_paciente ( cpf, nome ) values ( '888.999.111.11', 'Bruno Henrique' );
-insert into tb_paciente ( cpf, nome ) values ( '999.111.222.12', 'Juliana Costa' );
-insert into tb_paciente ( cpf, nome ) values ( '123.456.789.13', 'Mateus Ferreira' );
+insert into tb_paciente (cpf, nome) values ('00000000007', 'Thaciano do Santos');
+insert into tb_paciente (cpf, nome) values ('00000000006', 'Ronielson');
+insert into tb_paciente (cpf, nome) values ('00000000003', 'Gonzalo Escobar');
+insert into tb_paciente (cpf, nome) values ('11122233304', 'Mariana Oliveira');
+insert into tb_paciente (cpf, nome) values ('22233344405', 'Carlos Eduardo Lima');
+insert into tb_paciente (cpf, nome) values ('33344455506', 'Fernanda Rocha');
+insert into tb_paciente (cpf, nome) values ('44455566607', 'Joao Pedro Martins');
+insert into tb_paciente (cpf, nome) values ('55566677708', 'Patricia Gomes');
+insert into tb_paciente (cpf, nome) values ('66677788809', 'Rafael Almeida');
+insert into tb_paciente (cpf, nome) values ('77788899910', 'Camila Souza');
+insert into tb_paciente (cpf, nome) values ('88899911111', 'Bruno Henrique');
+insert into tb_paciente (cpf, nome) values ('99911122212', 'Juliana Costa');
+insert into tb_paciente (cpf, nome) values ('12345678913', 'Mateus Ferreira');
 
 -- 6.6. Inserts de cidadãos (Usuários do APP)
 insert into tb_cidadao ( nome, email, senha ) values ( 'Luiz Silva Souza', 'luiz@bd.com', 'Lz#8472A' );
@@ -264,7 +264,6 @@ insert into tb_cidadao_unidade_saude ( id_cidadao, id_unidade_saude ) values ( 1
 commit;
 
 -- 7. Bloco anônimo PL/SQL e Estrutura de Decisão ( no caso para fila de atendimentos)
-
 declare
    -- 1. Variáveis locais ancoradas (%TYPE)
    v_id_atendimento      tb_atendimento.id%type := 1; -- ID para teste de consulta
@@ -297,7 +296,7 @@ begin
           a.senha,
           a.servico,
           a.status_atendimento,
-          round((nvl(a.data_hora_chamada, current_timestamp) - a.data_hora_chegada) * 24 * 60)
+          round((cast(nvl(a.data_hora_chamada, current_timestamp) as date) - cast(a.data_hora_chegada as date)) * 24 * 60)
      into v_paciente_nome,
           v_paciente_cpf,
           v_unidade_id,
@@ -338,9 +337,9 @@ begin
 
    -- Avaliação do cumprimento do SLA
    if v_minutos_espera > v_sla_maximo_minutos then
-      v_status_sla := '🚨 SLA VIOLADO (TEMPO EXCESSIVO)';
+      v_status_sla := 'SLA VIOLADO (TEMPO EXCESSIVO)';
    else
-      v_status_sla := '✅ DENTRO DA META OPERACIONAL';
+      v_status_sla := 'DENTRO DA META OPERACIONAL';
    end if;
 
    -- Verifica se a unidade é favorita de cidadãos cadastrados
@@ -375,7 +374,42 @@ exception
 end;
 /
 
+-- 8. Cursor explícito filtrando apenas uma unidade (ex: ID 1)
+   DECLARE
+      CURSOR c_fila_espera IS
+         SELECT a.senha, p.nome AS paciente, a.servico,
+                     ROUND((CAST(CURRENT_TIMESTAMP AS DATE) - CAST(a.data_hora_chegada AS DATE)) * 24 * 60) AS minutos_espera
+         FROM tb_atendimento a
+         JOIN tb_paciente p ON a.id_paciente = p.id
+         WHERE a.id_unidade_saude = 8922
+            AND a.status_atendimento = 'AGUARDANDO'
+         ORDER BY a.data_hora_chegada ASC;
+
+      v_senha    tb_atendimento.senha%TYPE;
+      v_paciente tb_paciente.nome%TYPE;
+      v_servico  tb_atendimento.servico%TYPE;
+      v_minutos  NUMBER;
+      v_total    NUMBER := 0;
+   BEGIN
+         DBMS_OUTPUT.PUT_LINE('--- FILA DE ESPERA: PA MUN SAO MATEUS II  ---');
+
+         OPEN c_fila_espera;
+         LOOP
+            FETCH c_fila_espera INTO v_senha, v_paciente, v_servico, v_minutos;
+            EXIT WHEN c_fila_espera%NOTFOUND;
+
+            v_total := v_total + 1;
+            DBMS_OUTPUT.PUT_LINE(v_total || 'º da Fila | Senha: ' || v_senha || ' | Paciente: ' || v_paciente || ' |
+            Espera: ' || v_minutos || ' min');
+         END LOOP;
+         CLOSE c_fila_espera;
+
+      DBMS_OUTPUT.PUT_LINE('Total de pacientes aguardando nesta UBS: ' || v_total);
+   END;
+   /
+
 -- 9. Procedures
+
 -- 9.1. PRC_BUSCAR_UNIDADES_PROXIMAS (POR GEOLOCALIZAÇÃO / HAVERSINE)
 -- =====================================================================
 -- Entrada: Latitude, Longitude, Raio máximo em km (default 5km), Limite de resultados (default 10)
@@ -432,21 +466,129 @@ begin
 end pr_buscar_unidades_proximas;
 /
 
--- SELECT de verificação de criação das tabelas
-select * from tb_estado;
-select * from tb_municipio;
-select * from tb_localizacao;
-select * from tb_unidade_saude;
-select * from tb_paciente;
-select * from tb_cidadao;
-select * from tb_colaborador;
-select * from tb_atendimento;
-select * from tb_cidadao_unidade_saude;
+-- 9.2. PRC_REALIZAR_CHECKIN (REGISTRO DE ATENDIMENTO / GERAÇÃO DE SENHA)
+-- =====================================================================
+-- Entrada: CPF do paciente, ID da unidade de saúde, Tipo de serviço ('CLINICO_GERAL', 'TRIAGEM', etc.)
+-- Saída: VARCHAR2 contendo a senha sequencial formatada (ex: 'CLI-001', 'PED-012')
+-- Valida o CPF do paciente, define o prefixo do serviço e insere o atendimento com status 'AGUARDANDO'
+   CREATE OR REPLACE PROCEDURE prc_realizar_checkin (
+      p_cpf_paciente   IN  VARCHAR2,
+      p_id_unidade     IN  NUMBER,
+      p_servico        IN  VARCHAR2, -- 'CLINICO_GERAL', 'PEDIATRIA', etc.
+      p_senha_gerada   OUT VARCHAR2
+   ) IS
+      v_id_paciente    tb_paciente.id%TYPE;
+      v_proximo_num    NUMBER;
+      v_prefixo        VARCHAR2(5);
+   BEGIN
+      SELECT id INTO v_id_paciente
+      FROM tb_paciente
+      WHERE cpf = p_cpf_paciente;
 
-/*
-SELECT m.nome Municipio , e.nome Estado
-FROM 
-tb_estado e 
-INNER JOIN tb_municipio m
-ON e.id = m.id_estado;
-*/
+      IF p_servico = 'CLINICO_GERAL' THEN v_prefixo := 'CLI';
+      ELSIF p_servico = 'TRIAGEM'     THEN v_prefixo := 'TRI';
+      ELSIF p_servico = 'PEDIATRIA'   THEN v_prefixo := 'PED';
+      ELSIF p_servico = 'VACINACAO'   THEN v_prefixo := 'VAC';
+      ELSIF p_servico = 'ODONTOLOGIA'   THEN v_prefixo := 'ODO';
+      ELSE v_prefixo := 'GER';
+      END IF;
+
+      -- 3. Conta quantos atendimentos já existem para gerar a próxima senha sequencial
+      SELECT COUNT(*) + 1 INTO v_proximo_num
+      FROM tb_atendimento
+      WHERE id_unidade_saude = p_id_unidade AND servico = p_servico;
+
+      p_senha_gerada := v_prefixo || '-' || LPAD(v_proximo_num, 3, '0');
+
+      INSERT INTO tb_atendimento (
+         id_unidade_saude, id_paciente, status_atendimento,
+         data_hora_chegada, senha, servico
+      ) VALUES (
+         p_id_unidade, v_id_paciente, 'AGUARDANDO', CURRENT_TIMESTAMP, p_senha_gerada, p_servico
+        );
+
+      COMMIT;
+      DBMS_OUTPUT.PUT_LINE('Check-in realizado! Senha gerada: ' || p_senha_gerada);
+
+   EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('ERRO: Paciente com CPF ' || p_cpf_paciente || ' não encontrado.');
+      WHEN OTHERS THEN
+            ROLLBACK;
+            DBMS_OUTPUT.PUT_LINE('ERRO ao realizar check-in: ' || SQLERRM);
+   END prc_realizar_checkin;
+   /
+
+-- 10. Teste da procedure de Unidades mais próximas da minha casa:
+   DECLARE
+        v_cursor  SYS_REFCURSOR;
+        v_id      tb_unidade_saude.id%TYPE;
+        v_nome    tb_unidade_saude.nome%TYPE;
+        v_tipo    tb_unidade_saude.tipo_unidade%TYPE;
+        v_espera  tb_unidade_saude.tempo_espera%TYPE;
+        v_cep     tb_localizacao.cep%TYPE;
+        v_logr    tb_localizacao.logradouro%TYPE;
+        v_num     tb_localizacao.numero%TYPE;
+        v_bairro  tb_localizacao.bairro%TYPE;
+        v_mun     tb_municipio.nome%TYPE;
+        v_uf      tb_estado.sigla%TYPE;
+        v_lat     tb_localizacao.latitude%TYPE;
+        v_lon     tb_localizacao.longitude%TYPE;
+        v_dist    NUMBER;
+    BEGIN
+        DBMS_OUTPUT.PUT_LINE('--- BUSCA HAVERSINE (RAIO 5 KM) ---');
+        pr_buscar_unidades_proximas(-23.619035, -46.507267, 5.0, 5, v_cursor);
+        LOOP
+            FETCH v_cursor INTO v_id, v_nome, v_tipo, v_espera, v_cep, v_logr, v_num, v_bairro, v_mun, v_uf, v_lat,
+            v_lon, v_dist;
+            EXIT WHEN v_cursor%NOTFOUND;
+            DBMS_OUTPUT.PUT_LINE('[' || v_dist || ' km] ' || v_nome || ' (' || v_bairro || ' - ' || v_mun || '/' ||
+            v_uf || ')');
+        END LOOP;
+        CLOSE v_cursor;
+    END;
+    /
+
+-- 11. Teste da procedure de CheckIn, na unidade 8922:
+   DECLARE
+      v_senha_gerada VARCHAR2(20);
+   BEGIN
+      prc_realizar_checkin(
+         p_cpf_paciente => '00000000007',
+         p_id_unidade   => 8922,
+         p_servico      => 'CLINICO_GERAL',
+         p_senha_gerada => v_senha_gerada
+      );
+      DBMS_OUTPUT.PUT_LINE('Senha gerada pelo Check-in: ' || v_senha_gerada);
+   END;
+   /
+
+-- 12. Verificar quantidade de registros da base, em cada tabela:
+   SELECT 'TB_ESTADO' TABELA, COUNT(*) TOTAL FROM TB_ESTADO
+   UNION ALL
+   SELECT 'TB_MUNICIPIO', COUNT(*) FROM TB_MUNICIPIO
+   UNION ALL
+   SELECT 'TB_LOCALIZACAO', COUNT(*) FROM TB_LOCALIZACAO
+   UNION ALL
+   SELECT 'TB_UNIDADE_SAUDE', COUNT(*) FROM TB_UNIDADE_SAUDE
+   UNION ALL
+   SELECT 'TB_PACIENTE', COUNT(*) FROM TB_PACIENTE
+   UNION ALL
+   SELECT 'TB_CIDADAO', COUNT(*) FROM TB_CIDADAO
+   UNION ALL
+   SELECT 'TB_COLABORADOR', COUNT(*) FROM TB_COLABORADOR
+   UNION ALL
+   SELECT 'TB_ATENDIMENTO', COUNT(*) FROM TB_ATENDIMENTO
+   UNION ALL
+   SELECT 'TB_CIDADAO_UNIDADE_SAUDE', COUNT(*) FROM TB_CIDADAO_UNIDADE_SAUDE;
+
+-- 13. SELECT de verificação final das tabelas
+   select * from tb_estado;
+   select * from tb_municipio;
+   select * from tb_localizacao;
+   select * from tb_unidade_saude;
+   select * from tb_paciente;
+   select * from tb_cidadao;
+   select * from tb_colaborador;
+   select * from tb_atendimento;
+   select * from tb_cidadao_unidade_saude;
